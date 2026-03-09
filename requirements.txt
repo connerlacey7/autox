@@ -1,0 +1,9 @@
+fastapi
+uvicorn
+sqlalchemy[asyncio]
+aiomysql
+alembic
+python-dotenv
+pdfplumber
+pandas
+python-multipart

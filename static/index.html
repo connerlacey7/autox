@@ -1,0 +1,590 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>EIRSCCA Autocross</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: system-ui, sans-serif;
+      background: #0f0f0f;
+      color: #e0e0e0;
+      min-height: 100vh;
+    }
+
+    header {
+      background: #1a1a1a;
+      border-bottom: 2px solid #e63946;
+      padding: 16px 32px;
+      display: flex;
+      align-items: center;
+      gap: 16px;
+    }
+
+    header h1 {
+      font-size: 1.4rem;
+      font-weight: 700;
+      color: #fff;
+      letter-spacing: 0.05em;
+    }
+
+    header span {
+      color: #e63946;
+      font-size: 0.85rem;
+      font-weight: 500;
+    }
+
+    .controls {
+      background: #1a1a1a;
+      padding: 16px 32px;
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      flex-wrap: wrap;
+      border-bottom: 1px solid #2a2a2a;
+    }
+
+    select, input {
+      background: #2a2a2a;
+      border: 1px solid #3a3a3a;
+      color: #e0e0e0;
+      padding: 8px 12px;
+      border-radius: 4px;
+      font-size: 0.9rem;
+      cursor: pointer;
+    }
+
+    select:focus, input:focus {
+      outline: none;
+      border-color: #e63946;
+    }
+
+    .tabs {
+      display: flex;
+      gap: 4px;
+      background: #1a1a1a;
+      padding: 0 32px;
+      border-bottom: 1px solid #2a2a2a;
+    }
+
+    .tab {
+      padding: 12px 20px;
+      cursor: pointer;
+      font-size: 0.9rem;
+      color: #888;
+      border-bottom: 2px solid transparent;
+      transition: all 0.15s;
+      white-space: nowrap;
+    }
+
+    .tab:hover { color: #ccc; }
+
+    .tab.active {
+      color: #fff;
+      border-bottom-color: #e63946;
+    }
+
+    .content {
+      padding: 24px 32px;
+    }
+
+    .panel { display: none; }
+    .panel.active { display: block; }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.9rem;
+    }
+
+    th {
+      text-align: left;
+      padding: 10px 14px;
+      background: #1a1a1a;
+      color: #888;
+      font-weight: 600;
+      font-size: 0.78rem;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      border-bottom: 1px solid #2a2a2a;
+    }
+
+    td {
+      padding: 10px 14px;
+      border-bottom: 1px solid #1e1e1e;
+    }
+
+    tr:hover td { background: #1a1a1a; }
+
+    .pos {
+      font-weight: 700;
+      color: #888;
+      width: 40px;
+    }
+
+    tr:nth-child(1) .pos { color: #ffd700; }
+    tr:nth-child(2) .pos { color: #c0c0c0; }
+    tr:nth-child(3) .pos { color: #cd7f32; }
+
+    .points { font-weight: 600; color: #e63946; }
+    .time { font-family: monospace; font-size: 0.9rem; }
+
+    .empty {
+      text-align: center;
+      padding: 60px;
+      color: #444;
+      font-size: 0.95rem;
+    }
+
+    .loading {
+      text-align: center;
+      padding: 60px;
+      color: #555;
+    }
+
+    label {
+      font-size: 0.85rem;
+      color: #888;
+    }
+  </style>
+</head>
+<body>
+
+<header>
+  <h1>EIRSCCA Autocross</h1>
+  <span>Results &amp; Standings</span>
+</header>
+
+<div class="controls">
+  <label>Season</label>
+  <select id="seasonSelect" onchange="onSeasonChange()">
+    <option value="">-- select season --</option>
+  </select>
+
+  <label>Event</label>
+  <select id="eventSelect" onchange="onEventChange()">
+    <option value="">-- select event --</option>
+  </select>
+
+  <label>Class</label>
+  <input id="classInput" type="text" placeholder="e.g. BS" style="width:100px"
+         oninput="onClassChange()" />
+</div>
+
+<div class="tabs">
+  <div class="tab active" onclick="showTab('pax')">PAX Standings</div>
+  <div class="tab" onclick="showTab('raw')">RAW Standings</div>
+  <div class="tab" onclick="showTab('event')">Event Results</div>
+  <div class="tab" onclick="showTab('class')">Class Standings</div>
+  <div class="tab" onclick="showTab('cones')">Cone Killer</div>
+  <div class="tab" onclick="showTab('ingest')">Ingest</div>
+  <div class="tab" onclick="showTab('manage')">Manage</div>
+</div>
+
+<div class="content">
+
+  <div id="pax" class="panel active">
+    <div class="loading" id="paxMsg">Select a season to view PAX standings.</div>
+    <table id="paxTable" style="display:none">
+      <thead><tr>
+        <th>Pos</th><th>Driver</th><th>Events</th><th>Points</th>
+      </tr></thead>
+      <tbody id="paxBody"></tbody>
+    </table>
+  </div>
+
+  <div id="raw" class="panel">
+    <div class="loading" id="rawMsg">Select a season to view RAW standings.</div>
+    <table id="rawTable" style="display:none">
+      <thead><tr>
+        <th>Pos</th><th>Driver</th><th>Events</th><th>Points</th>
+      </tr></thead>
+      <tbody id="rawBody"></tbody>
+    </table>
+  </div>
+
+  <div id="event" class="panel">
+    <div class="loading" id="eventMsg">Select an event to view results.</div>
+    <table id="eventTable" style="display:none">
+      <thead><tr>
+        <th>Pos</th><th>Driver</th><th>Class</th><th>#</th>
+        <th>Raw Time</th><th>Cones</th><th>Total</th><th>PAX Index</th><th>PAX Time</th>
+      </tr></thead>
+      <tbody id="eventBody"></tbody>
+    </table>
+  </div>
+
+  <div id="class" class="panel">
+    <div class="loading" id="classMsg">Select a season and enter a class to view standings.</div>
+    <table id="classTable" style="display:none">
+      <thead><tr>
+        <th>Pos</th><th>Driver</th><th>Events</th><th>Points</th>
+      </tr></thead>
+      <tbody id="classBody"></tbody>
+    </table>
+  </div>
+
+  <div id="cones" class="panel">
+    <div class="loading" id="conesMsg">Select a season to view cone totals.</div>
+    <table id="conesTable" style="display:none">
+      <thead><tr>
+        <th>Pos</th><th>Driver</th><th>Total Cones</th>
+      </tr></thead>
+      <tbody id="conesBody"></tbody>
+    </table>
+  </div>
+
+  <div id="manage" class="panel">
+    <div style="display:flex; gap:48px; flex-wrap:wrap;">
+
+      <div style="min-width:240px;">
+        <h2 style="font-size:1rem; margin-bottom:20px; color:#fff;">Add Season</h2>
+        <div style="margin-bottom:12px;">
+          <label style="display:block; margin-bottom:6px;">Year</label>
+          <input type="number" id="newYear" placeholder="2026" style="width:100%" />
+        </div>
+        <button onclick="addSeason()"
+                style="background:#e63946; color:#fff; border:none; padding:8px 20px; border-radius:4px; cursor:pointer; font-weight:600;">
+          Add Season
+        </button>
+        <div id="seasonStatus" style="margin-top:12px; font-size:0.85rem;"></div>
+      </div>
+
+      <div style="min-width:320px;">
+        <h2 style="font-size:1rem; margin-bottom:20px; color:#fff;">Add Event</h2>
+        <div style="margin-bottom:12px;">
+          <label style="display:block; margin-bottom:6px;">Season</label>
+          <select id="manageSeason" style="width:100%">
+            <option value="">-- select season --</option>
+          </select>
+        </div>
+        <div style="margin-bottom:12px;">
+          <label style="display:block; margin-bottom:6px;">Event Number</label>
+          <input type="number" id="newEventNum" placeholder="1" style="width:100%" />
+        </div>
+        <div style="margin-bottom:12px;">
+          <label style="display:block; margin-bottom:6px;">Date (YYYY-MM-DD)</label>
+          <input type="date" id="newEventDate" style="width:100%" />
+        </div>
+        <div style="margin-bottom:20px;">
+          <label style="display:block; margin-bottom:6px;">Site</label>
+          <input type="text" id="newEventSite" placeholder="e.g. Rigby" style="width:100%" />
+        </div>
+        <button onclick="addEvent()"
+                style="background:#e63946; color:#fff; border:none; padding:8px 20px; border-radius:4px; cursor:pointer; font-weight:600;">
+          Add Event
+        </button>
+        <div id="eventStatus" style="margin-top:12px; font-size:0.85rem;"></div>
+      </div>
+
+    </div>
+  </div>
+
+  <div id="ingest" class="panel">
+    <div style="max-width: 480px;">
+      <h2 style="font-size:1rem; margin-bottom:20px; color:#fff;">Upload CSV Results</h2>
+
+      <div style="margin-bottom:16px;">
+        <label style="display:block; margin-bottom:6px;">Season</label>
+        <select id="ingestSeason" onchange="loadIngestEvents()" style="width:100%">
+          <option value="">-- select season --</option>
+        </select>
+      </div>
+
+      <div style="margin-bottom:16px;">
+        <label style="display:block; margin-bottom:6px;">Event</label>
+        <select id="ingestEvent" style="width:100%">
+          <option value="">-- select event --</option>
+        </select>
+      </div>
+
+      <div style="margin-bottom:24px;">
+        <label style="display:block; margin-bottom:6px;">CSV File</label>
+        <input type="file" id="csvFile" accept=".csv"
+               style="width:100%; padding:8px; background:#2a2a2a; border:1px solid #3a3a3a; border-radius:4px; color:#e0e0e0;" />
+      </div>
+
+      <button onclick="uploadCSV()"
+              style="background:#e63946; color:#fff; border:none; padding:10px 24px; border-radius:4px; font-size:0.95rem; cursor:pointer; font-weight:600;">
+        Upload
+      </button>
+
+      <div id="ingestStatus" style="margin-top:16px; font-size:0.9rem;"></div>
+    </div>
+  </div>
+
+</div>
+
+<script>
+  let currentTab = 'pax';
+  let currentSeason = null;
+  let currentEvent = null;
+  let currentClass = '';
+
+  async function api(path) {
+    const res = await fetch(path);
+    if (!res.ok) throw new Error(await res.text());
+    return res.json();
+  }
+
+  function showTab(tab) {
+    currentTab = tab;
+    document.querySelectorAll('.tab').forEach((t, i) => {
+      t.classList.toggle('active', ['pax','raw','event','class','cones','ingest','manage'][i] === tab);
+    });
+    document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+    document.getElementById(tab).classList.add('active');
+    refresh();
+  }
+
+  function onSeasonChange() {
+    currentSeason = document.getElementById('seasonSelect').value || null;
+    document.getElementById('eventSelect').innerHTML = '<option value="">-- select event --</option>';
+    currentEvent = null;
+    if (currentSeason) loadEvents(currentSeason);
+    refresh();
+  }
+
+  function onEventChange() {
+    currentEvent = document.getElementById('eventSelect').value || null;
+    refresh();
+  }
+
+  function onClassChange() {
+    currentClass = document.getElementById('classInput').value.trim().toUpperCase();
+    if (currentTab === 'class') refresh();
+  }
+
+  async function loadSeasons() {
+    const seasons = await api('/events/seasons');
+    const sel = document.getElementById('seasonSelect');
+    seasons.forEach(s => {
+      const opt = document.createElement('option');
+      opt.value = s.id;
+      opt.textContent = s.year;
+      sel.appendChild(opt);
+    });
+    if (seasons.length === 1) {
+      sel.value = seasons[0].id;
+      onSeasonChange();
+    }
+  }
+
+  async function loadEvents(seasonId) {
+    const events = await api(`/events/?season_id=${seasonId}`);
+    const sel = document.getElementById('eventSelect');
+    events.forEach(e => {
+      const opt = document.createElement('option');
+      opt.value = e.id;
+      opt.textContent = `Event ${e.event_num} — ${e.event_date} (${e.site})`;
+      sel.appendChild(opt);
+    });
+  }
+
+  function renderTable(tableId, msgId, rows, renderRow) {
+    const table = document.getElementById(tableId);
+    const msg = document.getElementById(msgId);
+    const body = document.getElementById(tableId.replace('Table', 'Body'));
+    if (!rows || rows.length === 0) {
+      table.style.display = 'none';
+      msg.style.display = 'block';
+      msg.textContent = 'No data found.';
+      return;
+    }
+    body.innerHTML = rows.map((row, i) => renderRow(row, i + 1)).join('');
+    table.style.display = 'table';
+    msg.style.display = 'none';
+  }
+
+  function standingsRow(row, pos) {
+    const name = `${row.first_name} ${row.last_name}`;
+    const pts = parseFloat(row.total_pax_points ?? row.total_raw_points ?? row.total_class_points ?? 0).toFixed(3);
+    return `<tr>
+      <td class="pos">${pos}</td>
+      <td>${name}</td>
+      <td>${row.events_counted}</td>
+      <td class="points">${pts}</td>
+    </tr>`;
+  }
+
+  function eventRow(row, pos) {
+    const name = `${row.first_name} ${row.last_name}`;
+    const total = (parseFloat(row.raw_time) + row.cones * 2).toFixed(3);
+    return `<tr>
+      <td class="pos">${pos}</td>
+      <td>${name}</td>
+      <td>${row.class}</td>
+      <td>${row.car_number ?? ''}</td>
+      <td class="time">${row.raw_time}</td>
+      <td>${row.cones}</td>
+      <td class="time">${total}</td>
+      <td>${row.pax_index}</td>
+      <td class="time points">${parseFloat(row.pax_time).toFixed(3)}</td>
+    </tr>`;
+  }
+
+  function conesRow(row, pos) {
+    return `<tr>
+      <td class="pos">${pos}</td>
+      <td>${row.first_name} ${row.last_name}</td>
+      <td class="points">${row.total_cones}</td>
+    </tr>`;
+  }
+
+  async function refresh() {
+    try {
+      if (currentTab === 'pax') {
+        if (!currentSeason) return;
+        const data = await api(`/results/standings/pax/${currentSeason}`);
+        renderTable('paxTable', 'paxMsg', data, standingsRow);
+
+      } else if (currentTab === 'raw') {
+        if (!currentSeason) return;
+        const data = await api(`/results/standings/raw/${currentSeason}`);
+        renderTable('rawTable', 'rawMsg', data, standingsRow);
+
+      } else if (currentTab === 'event') {
+        if (!currentEvent) {
+          document.getElementById('eventMsg').textContent = 'Select an event to view results.';
+          return;
+        }
+        const data = await api(`/results/event/${currentEvent}`);
+        renderTable('eventTable', 'eventMsg', data, eventRow);
+
+      } else if (currentTab === 'class') {
+        if (!currentSeason || !currentClass) {
+          document.getElementById('classMsg').textContent = 'Select a season and enter a class.';
+          return;
+        }
+        const data = await api(`/results/class/${currentSeason}/${currentClass}`);
+        renderTable('classTable', 'classMsg', data, standingsRow);
+
+      } else if (currentTab === 'cones') {
+        if (!currentSeason) return;
+        const data = await api(`/results/standings/cones/${currentSeason}`);
+        renderTable('conesTable', 'conesMsg', data, conesRow);
+      }
+    } catch (e) {
+      console.error(e);
+    }
+  }
+
+  async function loadManageSeasons() {
+    const seasons = await api('/events/seasons');
+    const sel = document.getElementById('manageSeason');
+    sel.innerHTML = '<option value="">-- select season --</option>';
+    seasons.forEach(s => {
+      const opt = document.createElement('option');
+      opt.value = s.id;
+      opt.textContent = s.year;
+      sel.appendChild(opt);
+    });
+  }
+
+  async function addSeason() {
+    const year = document.getElementById('newYear').value;
+    const status = document.getElementById('seasonStatus');
+    if (!year) { status.style.color = '#e63946'; status.textContent = 'Enter a year.'; return; }
+    try {
+      const res = await fetch(`/events/seasons?year=${year}`, { method: 'POST' });
+      if (!res.ok) throw new Error(await res.text());
+      status.style.color = '#4caf50';
+      status.textContent = `Season ${year} added.`;
+      document.getElementById('newYear').value = '';
+      loadSeasons();
+      loadIngestSeasons();
+      loadManageSeasons();
+    } catch (e) {
+      status.style.color = '#e63946';
+      status.textContent = `Error: ${e.message}`;
+    }
+  }
+
+  async function addEvent() {
+    const seasonId = document.getElementById('manageSeason').value;
+    const eventNum = document.getElementById('newEventNum').value;
+    const eventDate = document.getElementById('newEventDate').value;
+    const site = document.getElementById('newEventSite').value;
+    const status = document.getElementById('eventStatus');
+
+    if (!seasonId || !eventNum || !eventDate || !site) {
+      status.style.color = '#e63946'; status.textContent = 'All fields are required.'; return;
+    }
+    try {
+      const res = await fetch(`/events/?season_id=${seasonId}&event_num=${eventNum}&event_date=${eventDate}&site=${encodeURIComponent(site)}`, { method: 'POST' });
+      if (!res.ok) throw new Error(await res.text());
+      status.style.color = '#4caf50';
+      status.textContent = `Event ${eventNum} added.`;
+      document.getElementById('newEventNum').value = '';
+      document.getElementById('newEventDate').value = '';
+      document.getElementById('newEventSite').value = '';
+      loadEvents(seasonId);
+      loadIngestEvents();
+    } catch (e) {
+      status.style.color = '#e63946';
+      status.textContent = `Error: ${e.message}`;
+    }
+  }
+
+  async function loadIngestSeasons() {
+    const seasons = await api('/events/seasons');
+    const sel = document.getElementById('ingestSeason');
+    seasons.forEach(s => {
+      const opt = document.createElement('option');
+      opt.value = s.id;
+      opt.textContent = s.year;
+      sel.appendChild(opt);
+    });
+  }
+
+  async function loadIngestEvents() {
+    const seasonId = document.getElementById('ingestSeason').value;
+    const sel = document.getElementById('ingestEvent');
+    sel.innerHTML = '<option value="">-- select event --</option>';
+    if (!seasonId) return;
+    const events = await api(`/events/?season_id=${seasonId}`);
+    events.forEach(e => {
+      const opt = document.createElement('option');
+      opt.value = e.id;
+      opt.textContent = `Event ${e.event_num} — ${e.event_date} (${e.site})`;
+      sel.appendChild(opt);
+    });
+  }
+
+  async function uploadCSV() {
+    const eventId = document.getElementById('ingestEvent').value;
+    const file = document.getElementById('csvFile').files[0];
+    const status = document.getElementById('ingestStatus');
+
+    if (!eventId) { status.style.color = '#e63946'; status.textContent = 'Please select an event.'; return; }
+    if (!file) { status.style.color = '#e63946'; status.textContent = 'Please select a CSV file.'; return; }
+
+    status.style.color = '#888';
+    status.textContent = 'Uploading...';
+
+    const formData = new FormData();
+    formData.append('file', file);
+
+    try {
+      const res = await fetch(`/ingest/csv?event_id=${eventId}`, {
+        method: 'POST',
+        body: formData
+      });
+      if (!res.ok) throw new Error(await res.text());
+      status.style.color = '#4caf50';
+      status.textContent = 'Upload successful!';
+      document.getElementById('csvFile').value = '';
+    } catch (e) {
+      status.style.color = '#e63946';
+      status.textContent = `Error: ${e.message}`;
+    }
+  }
+
+  loadSeasons();
+  loadIngestSeasons();
+  loadManageSeasons();
+</script>
+</body>
+</html>

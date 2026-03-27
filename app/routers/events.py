@@ -26,3 +26,24 @@ async def create_event(season_id: int, event_num: int, event_date: str, site: st
     new_id = result.scalar()
     await db.commit()
     return {"id": new_id, "season_id": season_id, "event_num": event_num}
+
+
+@router.get("/seasons")
+async def list_seasons(db: AsyncSession = Depends(get_db)):
+    result = await db.execute(text("SELECT id, year FROM seasons ORDER BY year DESC"))
+    rows = result.fetchall()
+    return [dict(row._mapping) for row in rows]
+
+@router.get("/")
+async def list_events(season_id: int = None, db: AsyncSession = Depends(get_db)):
+    if season_id:
+        result = await db.execute(
+            text("SELECT id, season_id, event_num, event_date, site FROM events WHERE season_id = :sid ORDER BY event_num"),
+            {"sid": season_id}
+        )
+    else:
+        result = await db.execute(
+            text("SELECT id, season_id, event_num, event_date, site FROM events ORDER BY season_id, event_num")
+        )
+    rows = result.fetchall()
+    return [dict(row._mapping) for row in rows]

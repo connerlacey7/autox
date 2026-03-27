@@ -78,7 +78,7 @@ async def parse_csv(file_bytes: bytes, event_id: int, db)->dict:
         )
         pax_row = pax_result.fetchone()
         pax_index = pax_row[0] if pax_row else Decimal("1.000")
-        pax_time = best_time * pax_index
+        pax_time = (best_time + best_cones * 2) * pax_index
 
         # Insert result
         await db.execute(

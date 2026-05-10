@@ -121,12 +121,12 @@ def build_season_pdf(season_year, events_completed, pax_rows, raw_rows,
     max_rows = max(len(pax_body), len(raw_body), len(class_body), len(part_body))
 
     # ── Header styles ─────────────────────────────────────────────────────────
-    title_style = ParagraphStyle('T', fontName='Helvetica-Bold', fontSize=22,
-                                  alignment=TA_CENTER, spaceAfter=2)
-    sub_style   = ParagraphStyle('S', fontName='Helvetica-Bold', fontSize=13,
-                                  alignment=TA_CENTER, spaceAfter=4)
-    ev_style    = ParagraphStyle('E', fontName='Helvetica', fontSize=8,
-                                  alignment=TA_LEFT, spaceAfter=8, textColor=GRAY)
+    title_style = ParagraphStyle('T', fontName='Helvetica-Bold', fontSize=18,
+                                  alignment=TA_CENTER, spaceAfter=1, leading=20)
+    sub_style   = ParagraphStyle('S', fontName='Helvetica-Bold', fontSize=11,
+                                  alignment=TA_CENTER, spaceAfter=2, leading=13)
+    ev_style    = ParagraphStyle('E', fontName='Helvetica', fontSize=7,
+                                  alignment=TA_LEFT, spaceAfter=6, textColor=GRAY, leading=9)
 
     events_str = ', '.join(str(e) for e in events_completed)
 
@@ -148,16 +148,19 @@ def build_season_pdf(season_year, events_completed, pax_rows, raw_rows,
         class_chunk = class_hdr + class_body[start:end] or class_hdr + [['','','','']]
         part_chunk  = part_hdr  + part_body[start:end]  or part_hdr  + [['','']]
 
-        pax_t = Table(pax_chunk, colWidths=pax_cw)
+        def row_heights(chunk):
+            return [13] + [11] * (len(chunk) - 1)
+
+        pax_t = Table(pax_chunk, colWidths=pax_cw, rowHeights=row_heights(pax_chunk))
         pax_t.setStyle(_make_style(ORANGE))
 
-        raw_t = Table(raw_chunk, colWidths=raw_cw)
+        raw_t = Table(raw_chunk, colWidths=raw_cw, rowHeights=row_heights(raw_chunk))
         raw_t.setStyle(_make_style(ORANGE))
 
-        class_t = Table(class_chunk, colWidths=class_cw)
+        class_t = Table(class_chunk, colWidths=class_cw, rowHeights=row_heights(class_chunk))
         class_t.setStyle(_make_class_style())
 
-        part_t = Table(part_chunk, colWidths=part_cw)
+        part_t = Table(part_chunk, colWidths=part_cw, rowHeights=row_heights(part_chunk))
         part_t.setStyle(_make_part_style())
 
         story.append(_outer_table(pax_t, raw_t, class_t, part_t,

@@ -4,6 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>EIRSCCA Autocross</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js"></script>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -148,6 +149,30 @@
       font-size: 0.85rem;
       color: #888;
     }
+
+    .stat-card {
+      background: #1a1a1a;
+      border: 1px solid #2a2a2a;
+      border-radius: 8px;
+      padding: 20px 28px;
+      min-width: 160px;
+      text-align: center;
+    }
+
+    .stat-value {
+      font-size: 2.4rem;
+      font-weight: 700;
+      color: #e63946;
+      line-height: 1;
+      margin-bottom: 8px;
+    }
+
+    .stat-label {
+      font-size: 0.78rem;
+      color: #666;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
   </style>
 </head>
 <body>
@@ -155,6 +180,11 @@
 <header>
   <h1>EIRSCCA Autocross</h1>
   <span>Results &amp; Standings</span>
+  <button onclick="exportPDF()" id="exportBtn"
+          style="margin-left:auto; background:#e63946; color:#fff; border:none; padding:8px 18px;
+                 border-radius:4px; font-size:0.85rem; cursor:pointer; font-weight:600;">
+    Export PDF
+  </button>
 </header>
 
 <div class="controls">
@@ -174,7 +204,8 @@
 </div>
 
 <div class="tabs">
-  <div class="tab active" onclick="showTab('pax')">PAX Standings</div>
+  <div class="tab active" onclick="showTab('dashboard')">Dashboard</div>
+  <div class="tab" onclick="showTab('pax')">PAX Standings</div>
   <div class="tab" onclick="showTab('raw')">RAW Standings</div>
   <div class="tab" onclick="showTab('event')">Event Results</div>
   <div class="tab" onclick="showTab('class')">Class Standings</div>
@@ -185,11 +216,60 @@
 
 <div class="content">
 
-  <div id="pax" class="panel active">
+  <div id="dashboard" class="panel active">
+    <div class="loading" id="dashMsg">Select a season to view the dashboard.</div>
+    <div id="dashContent" style="display:none">
+
+      <!-- Stat cards -->
+      <div style="display:grid; grid-template-columns:repeat(auto-fill,minmax(130px,1fr)); gap:12px; margin-bottom:24px;">
+        <div class="stat-card">
+          <div class="stat-value" id="statEvents">—</div>
+          <div class="stat-label">Events Held</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-value" id="statUnique">—</div>
+          <div class="stat-label">Unique Drivers</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-value" id="statLastEvent">—</div>
+          <div class="stat-label" id="statLastEventLabel">Last Event</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-value" id="statNew">—</div>
+          <div class="stat-label" id="statNewLabel">New Last Event</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-value" id="statAvg">—</div>
+          <div class="stat-label">Avg / Event</div>
+        </div>
+      </div>
+
+      <!-- Charts + cone table row -->
+      <div style="display:grid; grid-template-columns:1fr 1fr 200px; gap:16px; align-items:start;">
+        <div style="background:#1a1a1a; border:1px solid #2a2a2a; border-radius:8px; padding:16px;">
+          <div style="font-size:0.78rem; color:#888; text-transform:uppercase; letter-spacing:0.05em; margin-bottom:12px;">Drivers Per Event</div>
+          <canvas id="driverChart" height="160"></canvas>
+        </div>
+        <div style="background:#1a1a1a; border:1px solid #2a2a2a; border-radius:8px; padding:16px;">
+          <div style="font-size:0.78rem; color:#888; text-transform:uppercase; letter-spacing:0.05em; margin-bottom:12px;">Cone Race (Top 5)</div>
+          <canvas id="coneChart" height="160"></canvas>
+        </div>
+        <div style="background:#1a1a1a; border:1px solid #2a2a2a; border-radius:8px; padding:16px;">
+          <div style="font-size:0.78rem; color:#888; text-transform:uppercase; letter-spacing:0.05em; margin-bottom:12px;">🍦 Cone Leaders</div>
+          <table style="width:100%; border-collapse:collapse; font-size:0.85rem;">
+            <tbody id="dashConeBody"></tbody>
+          </table>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <div id="pax" class="panel">
     <div class="loading" id="paxMsg">Select a season to view PAX standings.</div>
     <table id="paxTable" style="display:none">
       <thead><tr>
-        <th>Pos</th><th>Driver</th><th>Events</th><th>Points</th>
+        <th>Pos</th><th>Driver</th><th>Events</th><th>Points</th><th>Gap</th>
       </tr></thead>
       <tbody id="paxBody"></tbody>
     </table>
@@ -199,28 +279,48 @@
     <div class="loading" id="rawMsg">Select a season to view RAW standings.</div>
     <table id="rawTable" style="display:none">
       <thead><tr>
-        <th>Pos</th><th>Driver</th><th>Events</th><th>Points</th>
+        <th>Pos</th><th>Driver</th><th>Events</th><th>Points</th><th>Gap</th>
       </tr></thead>
       <tbody id="rawBody"></tbody>
     </table>
   </div>
 
   <div id="event" class="panel">
+    <div style="margin-bottom:16px; display:flex; gap:8px;">
+      <button onclick="setEventSort('pax')" id="sortPax"
+              style="padding:6px 16px; border-radius:4px; border:none; cursor:pointer; background:#e63946; color:#fff; font-weight:600;">
+        PAX
+      </button>
+      <button onclick="setEventSort('raw')" id="sortRaw"
+              style="padding:6px 16px; border-radius:4px; border:none; cursor:pointer; background:#2a2a2a; color:#aaa;">
+        RAW
+      </button>
+    </div>
     <div class="loading" id="eventMsg">Select an event to view results.</div>
     <table id="eventTable" style="display:none">
       <thead><tr>
         <th>Pos</th><th>Driver</th><th>Class</th><th>#</th>
-        <th>Raw Time</th><th>Cones</th><th>Total</th><th>PAX Index</th><th>PAX Time</th>
+        <th>Raw Time</th><th>Cones</th><th>Total</th><th>PAX Index</th><th>PAX Time</th><th>Gap</th>
       </tr></thead>
       <tbody id="eventBody"></tbody>
     </table>
   </div>
 
   <div id="class" class="panel">
+    <div style="margin-bottom:16px; display:flex; gap:8px;">
+      <button onclick="setClassView('season')" id="classViewSeason"
+              style="padding:6px 16px; border-radius:4px; border:none; cursor:pointer; background:#e63946; color:#fff; font-weight:600;">
+        Season Standings
+      </button>
+      <button onclick="setClassView('event')" id="classViewEvent"
+              style="padding:6px 16px; border-radius:4px; border:none; cursor:pointer; background:#2a2a2a; color:#aaa;">
+        Single Event
+      </button>
+    </div>
     <div class="loading" id="classMsg">Select a season and enter a class to view standings.</div>
     <table id="classTable" style="display:none">
-      <thead><tr>
-        <th>Pos</th><th>Driver</th><th>Events</th><th>Points</th>
+      <thead id="classTableHead"><tr>
+        <th>Pos</th><th>Driver</th><th>Events</th><th>Points</th><th>Gap</th>
       </tr></thead>
       <tbody id="classBody"></tbody>
     </table>
@@ -318,10 +418,12 @@
 </div>
 
 <script>
-  let currentTab = 'pax';
+  let currentTab = 'dashboard';
   let currentSeason = null;
   let currentEvent = null;
   let currentClass = '';
+  let eventSort = 'pax';
+  let classView = 'season';
 
   async function api(path) {
     const res = await fetch(path);
@@ -332,7 +434,7 @@
   function showTab(tab) {
     currentTab = tab;
     document.querySelectorAll('.tab').forEach((t, i) => {
-      t.classList.toggle('active', ['pax','raw','event','class','cones','ingest','manage'][i] === tab);
+      t.classList.toggle('active', ['dashboard','pax','raw','event','class','cones','ingest','manage'][i] === tab);
     });
     document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
     document.getElementById(tab).classList.add('active');
@@ -393,25 +495,37 @@
       msg.textContent = 'No data found.';
       return;
     }
-    body.innerHTML = rows.map((row, i) => renderRow(row, i + 1)).join('');
+    body.innerHTML = rows.map((row, i) => renderRow(row, i + 1, rows[0])).join('');
     table.style.display = 'table';
     msg.style.display = 'none';
   }
 
-  function standingsRow(row, pos) {
+  function gap(val, leaderVal) {
+    if (val === leaderVal) return '<span style="color:#888">—</span>';
+    const diff = Math.abs(parseFloat(val) - parseFloat(leaderVal)).toFixed(3);
+    return `<span style="color:#666">+${diff}</span>`;
+  }
+
+  function standingsRow(row, pos, leader) {
     const name = `${row.first_name} ${row.last_name}`;
-    const pts = parseFloat(row.total_pax_points ?? row.total_raw_points ?? row.total_class_points ?? 0).toFixed(3);
+    const pts = parseFloat(row.total_pax_points ?? row.total_raw_points ?? row.total_class_points ?? 0);
+    const leaderPts = parseFloat(leader.total_pax_points ?? leader.total_raw_points ?? leader.total_class_points ?? 0);
     return `<tr>
       <td class="pos">${pos}</td>
       <td>${name}</td>
       <td>${row.events_counted}</td>
-      <td class="points">${pts}</td>
+      <td class="points">${pts.toFixed(3)}</td>
+      <td>${gap(pts, leaderPts)}</td>
     </tr>`;
   }
 
-  function eventRow(row, pos) {
+  function eventRow(row, pos, leader) {
     const name = `${row.first_name} ${row.last_name}`;
-    const total = (parseFloat(row.raw_time) + row.cones * 2).toFixed(3);
+    const total = parseFloat(row.raw_time) + row.cones * 2;
+    const leaderTime = eventSort === 'raw'
+      ? parseFloat(leader.raw_time) + leader.cones * 2
+      : parseFloat(leader.pax_time);
+    const myTime = eventSort === 'raw' ? total : parseFloat(row.pax_time);
     return `<tr>
       <td class="pos">${pos}</td>
       <td>${name}</td>
@@ -419,9 +533,24 @@
       <td>${row.car_number ?? ''}</td>
       <td class="time">${row.raw_time}</td>
       <td>${row.cones}</td>
-      <td class="time">${total}</td>
+      <td class="time">${total.toFixed(3)}</td>
       <td>${row.pax_index}</td>
       <td class="time points">${parseFloat(row.pax_time).toFixed(3)}</td>
+      <td>${gap(myTime, leaderTime)}</td>
+    </tr>`;
+  }
+
+  function classEventRow(row, pos, leader) {
+    const leaderTotal = parseFloat(leader.raw_time) + leader.cones * 2;
+    const myTotal = parseFloat(row.raw_time) + row.cones * 2;
+    return `<tr>
+      <td class="pos">${pos}</td>
+      <td>${row.first_name} ${row.last_name}</td>
+      <td>${row.car_number ?? ''}</td>
+      <td class="time">${row.raw_time}</td>
+      <td>${row.cones}</td>
+      <td class="time points">${myTotal.toFixed(3)}</td>
+      <td>${gap(myTotal, leaderTotal)}</td>
     </tr>`;
   }
 
@@ -435,7 +564,97 @@
 
   async function refresh() {
     try {
-      if (currentTab === 'pax') {
+      if (currentTab === 'dashboard') {
+        if (!currentSeason) return;
+        const [data, driverData, coneData] = await Promise.all([
+          api(`/results/dashboard/${currentSeason}`),
+          api(`/results/dashboard/${currentSeason}/drivers-per-event`),
+          api(`/results/dashboard/${currentSeason}/cone-race`),
+        ]);
+
+        document.getElementById('statUnique').textContent = data.unique_drivers ?? '—';
+        document.getElementById('statLastEvent').textContent = data.last_event_drivers ?? '—';
+        document.getElementById('statLastEventLabel').textContent = `Ev ${data.last_event_num ?? '?'} Drivers`;
+        document.getElementById('statAvg').textContent = data.avg_drivers_per_event ?? '—';
+        document.getElementById('statEvents').textContent = data.total_events ?? '—';
+        document.getElementById('statNew').textContent = data.new_drivers_last_event ?? '—';
+        document.getElementById('statNewLabel').textContent = `New Ev ${data.last_event_num ?? '?'}`;
+
+        document.getElementById('dashConeBody').innerHTML = data.cone_leaders.map((r, i) => `
+          <tr>
+            <td style="padding:5px 8px; border-bottom:1px solid #1e1e1e; color:#888; font-size:0.8rem;">${i + 1}</td>
+            <td style="padding:5px 8px; border-bottom:1px solid #1e1e1e; font-size:0.85rem;">${r.first_name} ${r.last_name}</td>
+            <td style="padding:5px 8px; border-bottom:1px solid #1e1e1e; color:#e63946; font-weight:700;">${r.total_cones}</td>
+          </tr>`).join('');
+
+        // Drivers per event chart
+        const driverCounts = driverData.map(d => d.driver_count);
+        const driverAvg = parseFloat(data.avg_drivers_per_event);
+        if (window._driverChart) window._driverChart.destroy();
+        window._driverChart = new Chart(document.getElementById('driverChart'), {
+          type: 'bar',
+          data: {
+            labels: driverData.map(d => `Ev ${d.event_num}`),
+            datasets: [
+              {
+                label: 'Drivers',
+                data: driverCounts,
+                backgroundColor: 'rgba(230,57,70,0.7)',
+                borderColor: '#e63946',
+                borderWidth: 1,
+                borderRadius: 3,
+              },
+              {
+                label: `Avg (${driverAvg})`,
+                data: driverData.map(() => driverAvg),
+                type: 'line',
+                borderColor: '#aaa',
+                borderDash: [5, 4],
+                borderWidth: 1.5,
+                pointRadius: 0,
+                fill: false,
+              }
+            ]
+          },
+          options: {
+            plugins: { legend: { labels: { color: '#666', boxWidth: 12, font: { size: 11 } } } },
+            scales: {
+              x: { ticks: { color: '#666' }, grid: { color: '#222' } },
+              y: { ticks: { color: '#666', stepSize: 1 }, grid: { color: '#222' }, beginAtZero: true }
+            }
+          }
+        });
+
+        // Cone race chart — top 5 from cone-race endpoint directly
+        const colors = ['#e63946','#f4a261','#2a9d8f','#e9c46a','#a8dadc'];
+        const names = Object.keys(coneData.series);
+        if (window._coneChart) window._coneChart.destroy();
+        window._coneChart = new Chart(document.getElementById('coneChart'), {
+          type: 'line',
+          data: {
+            labels: coneData.events.map(n => `Ev ${n}`),
+            datasets: names.map((name, i) => ({
+              label: name,
+              data: coneData.series[name],
+              borderColor: colors[i % colors.length],
+              backgroundColor: 'transparent',
+              tension: 0.3,
+              pointBackgroundColor: colors[i % colors.length],
+            }))
+          },
+          options: {
+            plugins: { legend: { labels: { color: '#888', boxWidth: 12, font: { size: 11 } } } },
+            scales: {
+              x: { ticks: { color: '#666' }, grid: { color: '#222' } },
+              y: { ticks: { color: '#666', stepSize: 1 }, grid: { color: '#222' }, beginAtZero: true }
+            }
+          }
+        });
+
+        document.getElementById('dashMsg').style.display = 'none';
+        document.getElementById('dashContent').style.display = 'block';
+
+      } else if (currentTab === 'pax') {
         if (!currentSeason) return;
         const data = await api(`/results/standings/pax/${currentSeason}`);
         renderTable('paxTable', 'paxMsg', data, standingsRow);
@@ -450,16 +669,25 @@
           document.getElementById('eventMsg').textContent = 'Select an event to view results.';
           return;
         }
-        const data = await api(`/results/event/${currentEvent}`);
+        const data = await api(`/results/event/${currentEvent}?sort=${eventSort}`);
         renderTable('eventTable', 'eventMsg', data, eventRow);
 
       } else if (currentTab === 'class') {
-        if (!currentSeason || !currentClass) {
-          document.getElementById('classMsg').textContent = 'Select a season and enter a class.';
+        if (!currentClass) {
+          document.getElementById('classMsg').textContent = 'Enter a class above.';
           return;
         }
-        const data = await api(`/results/class/${currentSeason}/${currentClass}`);
-        renderTable('classTable', 'classMsg', data, standingsRow);
+        if (classView === 'season') {
+          if (!currentSeason) { document.getElementById('classMsg').textContent = 'Select a season.'; return; }
+          const data = await api(`/results/class/${currentSeason}/${currentClass}`);
+          document.getElementById('classTableHead').innerHTML = '<tr><th>Pos</th><th>Driver</th><th>Events</th><th>Points</th><th>Gap</th></tr>';
+          renderTable('classTable', 'classMsg', data, standingsRow);
+        } else {
+          if (!currentEvent) { document.getElementById('classMsg').textContent = 'Select an event.'; return; }
+          const data = await api(`/results/event/${currentEvent}/class/${currentClass}`);
+          document.getElementById('classTableHead').innerHTML = '<tr><th>Pos</th><th>Driver</th><th>#</th><th>Raw</th><th>Cones</th><th>Total</th><th>Gap</th></tr>';
+          renderTable('classTable', 'classMsg', data, classEventRow);
+        }
 
       } else if (currentTab === 'cones') {
         if (!currentSeason) return;
@@ -469,6 +697,35 @@
     } catch (e) {
       console.error(e);
     }
+  }
+
+  function classEventRow(row, pos) {
+    return `<tr>
+      <td class="pos">${pos}</td>
+      <td>${row.first_name} ${row.last_name}</td>
+      <td>${row.car_number ?? ''}</td>
+      <td class="time">${row.raw_time}</td>
+      <td>${row.cones}</td>
+      <td class="time points">${parseFloat(row.total_time).toFixed(3)}</td>
+    </tr>`;
+  }
+
+  function setClassView(view) {
+    classView = view;
+    document.getElementById('classViewSeason').style.background = view === 'season' ? '#e63946' : '#2a2a2a';
+    document.getElementById('classViewSeason').style.color = view === 'season' ? '#fff' : '#aaa';
+    document.getElementById('classViewEvent').style.background = view === 'event' ? '#e63946' : '#2a2a2a';
+    document.getElementById('classViewEvent').style.color = view === 'event' ? '#fff' : '#aaa';
+    refresh();
+  }
+
+  function setEventSort(sort) {
+    eventSort = sort;
+    document.getElementById('sortPax').style.background = sort === 'pax' ? '#e63946' : '#2a2a2a';
+    document.getElementById('sortPax').style.color = sort === 'pax' ? '#fff' : '#aaa';
+    document.getElementById('sortRaw').style.background = sort === 'raw' ? '#e63946' : '#2a2a2a';
+    document.getElementById('sortRaw').style.color = sort === 'raw' ? '#fff' : '#aaa';
+    refresh();
   }
 
   async function loadManageSeasons() {
@@ -579,6 +836,32 @@
     } catch (e) {
       status.style.color = '#e63946';
       status.textContent = `Error: ${e.message}`;
+    }
+  }
+
+  async function exportPDF() {
+    if (!currentSeason) {
+      alert('Select a season first.');
+      return;
+    }
+    const btn = document.getElementById('exportBtn');
+    btn.textContent = 'Generating…';
+    btn.disabled = true;
+    try {
+      const res = await fetch(`/reports/season/${currentSeason}`);
+      if (!res.ok) throw new Error(await res.text());
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `season_${currentSeason}_report.pdf`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch (e) {
+      alert(`Export failed: ${e.message}`);
+    } finally {
+      btn.textContent = 'Export PDF';
+      btn.disabled = false;
     }
   }
 

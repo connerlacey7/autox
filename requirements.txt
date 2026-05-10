@@ -8,3 +8,4 @@ pdfplumber
 pandas
 python-multipart
 aiofiles
+reportlab

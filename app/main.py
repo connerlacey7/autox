@@ -1,7 +1,7 @@
 from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
-from app.routers import ingest, events, results, drivers
+from app.routers import ingest, events, results, drivers, reports
 
 app = FastAPI()
 
@@ -15,3 +15,4 @@ app.include_router(ingest.router)
 app.include_router(events.router)
 app.include_router(results.router)
 app.include_router(drivers.router)
+app.include_router(reports.router)

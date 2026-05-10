@@ -45,21 +45,30 @@ async def parse_csv(file_bytes: bytes, event_id: int, db)->dict:
         best_time = best_run["time"]
         best_cones = best_run["cones"]
 
+        # Look up by member number first, then fall back to name
+        driver_row = None
         if member_num:
             result = await db.execute(
                 text("SELECT id FROM drivers WHERE member_number = :mn"),
                 {"mn": member_num}
             )
-        else:
+            driver_row = result.fetchone()
+
+        if not driver_row:
             result = await db.execute(
                 text("SELECT id FROM drivers WHERE first_name = :fn AND last_name = :ln"),
                 {"fn": first_name, "ln": last_name}
             )
-
-        driver_row = result.fetchone()
+            driver_row = result.fetchone()
 
         if driver_row:
             driver_id = driver_row[0]
+            # Update member number and region if we now have them
+            if member_num:
+                await db.execute(
+                    text("UPDATE drivers SET member_number = :mn, region = :rg WHERE id = :id"),
+                    {"mn": member_num, "rg": region, "id": driver_id}
+                )
         else:
             await db.execute(
                 text("""
